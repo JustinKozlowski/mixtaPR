@@ -1,0 +1,156 @@
+/* MixtaPR — PR panel styles */
+
+#mixtapr-panel {
+  background: #fff;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  overflow: hidden;
+}
+
+#mixtapr-panel.mixtapr-floating {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 320px;
+  z-index: 9999;
+  box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2);
+}
+
+.mixtapr-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #f6f8fa;
+  border-bottom: 1px solid #d0d7de;
+}
+
+.mixtapr-title {
+  font-weight: 600;
+  color: #24292f;
+}
+
+.mixtapr-collapse {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  color: #57606a;
+  padding: 0 4px;
+}
+
+.mixtapr-collapse:hover {
+  color: #24292f;
+}
+
+.mixtapr-body {
+  padding: 12px;
+}
+
+.mixtapr-loading,
+.mixtapr-empty,
+.mixtapr-error {
+  color: #57606a;
+  text-align: center;
+  padding: 8px 0;
+}
+
+.mixtapr-error {
+  color: #cf222e;
+}
+
+.mixtapr-tracks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.mixtapr-track {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  transition: background 0.1s;
+}
+
+.mixtapr-track:hover {
+  background: #f6f8fa;
+}
+
+.mixtapr-art {
+  width: 40px;
+  height: 40px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
+.mixtapr-art-placeholder {
+  background: #d0d7de;
+}
+
+.mixtapr-track-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.mixtapr-track-name {
+  font-weight: 500;
+  color: #24292f;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mixtapr-track-name:hover {
+  text-decoration: underline;
+  color: #0969da;
+}
+
+.mixtapr-artist {
+  color: #57606a;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mixtapr-queue-btn {
+  width: 100%;
+  padding: 6px 12px;
+  background: #1DB954;
+  color: #fff;
+  font-weight: 600;
+  border: none;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s, opacity 0.15s;
+}
+
+.mixtapr-queue-btn:hover {
+  background: #1aa34a;
+}
+
+.mixtapr-queue-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mixtapr-status {
+  text-align: center;
+  color: #57606a;
+  font-size: 12px;
+  margin: 6px 0 0;
+  min-height: 1em;
+}

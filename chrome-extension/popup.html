@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MixtaPR Settings</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 300px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      color: #24292f;
+      background: #fff;
+    }
+    .header {
+      padding: 12px 16px;
+      background: #f6f8fa;
+      border-bottom: 1px solid #d0d7de;
+      font-weight: 600;
+      font-size: 15px;
+    }
+    .content { padding: 16px; }
+    label {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 6px 10px;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 14px;
+    }
+    input:focus { outline: none; border-color: #0969da; box-shadow: 0 0 0 3px rgba(9,105,218,.15); }
+    .hint { font-size: 11px; color: #57606a; margin-top: -10px; margin-bottom: 14px; }
+    .hint a { color: #0969da; }
+    .redirect-uri {
+      font-family: monospace;
+      font-size: 11px;
+      background: #f6f8fa;
+      border: 1px solid #d0d7de;
+      border-radius: 4px;
+      padding: 4px 6px;
+      word-break: break-all;
+      margin-bottom: 14px;
+      color: #24292f;
+    }
+    button {
+      width: 100%;
+      padding: 7px 14px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .btn-save { background: #2da44e; color: #fff; margin-bottom: 8px; }
+    .btn-save:hover { background: #2c974b; }
+    .btn-auth { background: #1DB954; color: #fff; }
+    .btn-auth:hover { background: #1aa34a; }
+    .btn-auth:disabled { opacity: 0.6; cursor: not-allowed; }
+    .status {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #57606a;
+      min-height: 1.2em;
+      text-align: center;
+    }
+    .status.error { color: #cf222e; }
+    .status.success { color: #1a7f37; }
+  </style>
+</head>
+<body>
+  <div class="header">🎵 MixtaPR Settings</div>
+  <div class="content">
+    <label for="clientId">Spotify Client ID</label>
+    <input type="text" id="clientId" placeholder="Your Spotify app client ID">
+    <p class="hint">
+      Create an app at <a href="https://developer.spotify.com/dashboard" target="_blank">developer.spotify.com</a>
+      and add this redirect URI:
+    </p>
+    <div class="redirect-uri" id="redirectUri">Loading…</div>
+
+    <label for="serviceUrl">MixtaPR Service URL</label>
+    <input type="text" id="serviceUrl" placeholder="http://localhost:5226">
+
+    <button class="btn-save" id="saveBtn">Save Settings</button>
+    <button class="btn-auth" id="authBtn">Authorize Spotify</button>
+    <p class="status" id="status"></p>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

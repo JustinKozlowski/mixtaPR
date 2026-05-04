@@ -1,0 +1,258 @@
+#!/usr/bin/env python3
+"""
+MixtaPR post-commit hook.
+Captures the Spotify track you're listening to and associates it with the commit.
+"""
+from __future__ import annotations
+import hashlib
+import http.server
+import json
+import secrets
+import subprocess
+import sys
+import threading
+import urllib.parse
+import urllib.request
+import webbrowser
+from base64 import urlsafe_b64encode
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+CONFIG_PATH = Path.home() / ".mixtapr" / "config.json"
+
+# ── Edit these before installing ──────────────────────────────────────────────
+SPOTIFY_CLIENT_ID = "3ab017e03cd044809636a87e5749293a"
+SERVICE_URL = "http://localhost:5226"
+# ─────────────────────────────────────────────────────────────────────────────
+
+SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize"
+SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token"
+SPOTIFY_NOW_PLAYING_URL = "https://api.spotify.com/v1/me/player/currently-playing"
+REDIRECT_URI = "http://127.0.0.1:8888/callback"
+SCOPE = "user-read-currently-playing"
+
+# ── Config helpers ────────────────────────────────────────────────────────────
+
+def load_config() -> dict:
+    if CONFIG_PATH.exists():
+        with open(CONFIG_PATH) as f:
+            return json.load(f)
+    return {}
+
+
+def save_config(cfg: dict) -> None:
+    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(CONFIG_PATH, "w") as f:
+        json.dump(cfg, f, indent=2)
+
+
+# ── PKCE helpers ──────────────────────────────────────────────────────────────
+
+def pkce_pair() -> tuple[str, str]:
+    verifier = urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode()
+    challenge = urlsafe_b64encode(
+        hashlib.sha256(verifier.encode()).digest()
+    ).rstrip(b"=").decode()
+    return verifier, challenge
+
+# ── OAuth flow ────────────────────────────────────────────────────────────────
+
+def oauth_flow(client_id: str) -> tuple[str, str, int]:
+    """Run Spotify PKCE auth locally; return (access_token, refresh_token, expires_in)."""
+    verifier, challenge = pkce_pair()
+    state = secrets.token_hex(8)
+
+    params = {
+        "client_id": client_id,
+        "response_type": "code",
+        "redirect_uri": REDIRECT_URI,
+        "scope": SCOPE,
+        "code_challenge_method": "S256",
+        "code_challenge": challenge,
+        "state": state,
+    }
+    url = SPOTIFY_AUTH_URL + "?" + urllib.parse.urlencode(params)
+
+    received: dict = {}
+    ready = threading.Event()
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_GET(self):
+            qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+            received["code"] = qs.get("code", [None])[0]
+            received["state"] = qs.get("state", [None])[0]
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"<html><body><h2>MixtaPR authorized! You can close this tab.</h2></body></html>")
+            ready.set()
+
+    httpd = http.server.HTTPServer(("127.0.0.1", 8888), Handler)
+
+    t = threading.Thread(target=httpd.handle_request, daemon=True)
+    t.start()
+
+    print("[mixtaPR] Opening Spotify authorization in your browser...", file=sys.stderr)
+    webbrowser.open(url)
+
+    fired = ready.wait(timeout=120)
+    httpd.server_close()
+    t.join(timeout=5)
+
+    if not fired or not received.get("code"):
+        print("[mixtaPR] Authorization timed out or was cancelled.", file=sys.stderr)
+        sys.exit(0)
+
+    if received.get("state") != state:
+        print("[mixtaPR] State mismatch — possible CSRF. Aborting.", file=sys.stderr)
+        sys.exit(0)
+
+    return exchange_code(client_id, received["code"], verifier)
+
+
+def exchange_code(client_id: str, code: str, verifier: str) -> tuple[str, str, int]:
+    data = urllib.parse.urlencode({
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": REDIRECT_URI,
+        "client_id": client_id,
+        "code_verifier": verifier,
+    }).encode()
+    req = urllib.request.Request(SPOTIFY_TOKEN_URL, data=data, method="POST")
+    req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    with urllib.request.urlopen(req) as resp:
+        body = json.load(resp)
+    return body["access_token"], body["refresh_token"], body["expires_in"]
+
+
+def refresh_access_token(client_id: str, refresh_token: str) -> tuple[str, str, int]:
+    data = urllib.parse.urlencode({
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
+        "client_id": client_id,
+    }).encode()
+    req = urllib.request.Request(SPOTIFY_TOKEN_URL, data=data, method="POST")
+    req.add_header("Content-Type", "application/x-www-form-urlencoded")
+    with urllib.request.urlopen(req) as resp:
+        body = json.load(resp)
+    return body["access_token"], body.get("refresh_token", refresh_token), body["expires_in"]
+
+# ── Token management ──────────────────────────────────────────────────────────
+
+def ensure_valid_token(cfg: dict) -> str:
+    client_id = SPOTIFY_CLIENT_ID
+    expiry_str = cfg.get("token_expiry")
+    access_token = cfg.get("access_token")
+    refresh_token = cfg.get("refresh_token")
+    now = datetime.now(timezone.utc)
+
+    if access_token and expiry_str:
+        expiry = datetime.fromisoformat(expiry_str)
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+        if now < expiry:
+            return access_token
+
+    if refresh_token:
+        try:
+            access_token, refresh_token, expires_in = refresh_access_token(client_id, refresh_token)
+        except Exception as e:
+            print(f"[mixtaPR] Token refresh failed ({e}), re-authorizing...", file=sys.stderr)
+            access_token, refresh_token, expires_in = oauth_flow(client_id)
+    else:
+        access_token, refresh_token, expires_in = oauth_flow(client_id)
+
+    expiry = (now + timedelta(seconds=expires_in)).isoformat()
+    cfg.update(access_token=access_token, refresh_token=refresh_token, token_expiry=expiry)
+    save_config(cfg)
+    return access_token
+
+# ── Spotify API ───────────────────────────────────────────────────────────────
+
+def get_currently_playing(access_token: str) -> tuple[str, str | None] | None:
+    """Return (track_id, user_id) or None if nothing is playing."""
+    req = urllib.request.Request(SPOTIFY_NOW_PLAYING_URL)
+    req.add_header("Authorization", f"Bearer {access_token}")
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status == 204:
+                return None
+            body = json.load(resp)
+    except urllib.error.HTTPError as e:
+        print(f"[mixtaPR] Spotify error {e.code}: {e.reason}", file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"[mixtaPR] Error calling Spotify: {e}", file=sys.stderr)
+        return None
+
+    item = body.get("item")
+    if not item or body.get("currently_playing_type") != "track":
+        print(f"[mixtaPR] Skipping: currently playing type is '{body.get('currently_playing_type')}'.", file=sys.stderr)
+        return None
+
+    track_id = item["id"]
+
+    req2 = urllib.request.Request("https://api.spotify.com/v1/me")
+    req2.add_header("Authorization", f"Bearer {access_token}")
+    try:
+        with urllib.request.urlopen(req2, timeout=5) as resp:
+            user_id = json.load(resp).get("id")
+    except Exception:
+        user_id = None
+
+    return track_id, user_id
+
+# ── MixtaPR service ───────────────────────────────────────────────────────────
+
+def post_commit_track(service_url: str, commit_hash: str, track_id: str, user_id: str | None) -> None:
+    payload = json.dumps({
+        "commitHash": commit_hash,
+        "spotifyTrackId": track_id,
+        "spotifyUserId": user_id,
+    }).encode()
+    req = urllib.request.Request(f"{service_url.rstrip('/')}/commits", data=payload, method="POST")
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            if resp.status in (200, 201):
+                print(f"[mixtaPR] Saved track {track_id} for commit {commit_hash[:8]}", file=sys.stderr)
+    except Exception as e:
+        print(f"[mixtaPR] Failed to post to MixtaPR service: {e}", file=sys.stderr)
+
+# ── Git ───────────────────────────────────────────────────────────────────────
+
+def get_commit_hash() -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True, text=True, check=True,
+    )
+    return result.stdout.strip()
+
+# ── Main ──────────────────────────────────────────────────────────────────────
+
+def main():
+    if not SPOTIFY_CLIENT_ID:
+        print("[mixtaPR] SPOTIFY_CLIENT_ID is not set in the hook script.", file=sys.stderr)
+        sys.exit(0)
+
+    cfg = load_config()
+
+    try:
+        access_token = ensure_valid_token(cfg)
+    except Exception as e:
+        print(f"[mixtaPR] Auth error: {e}", file=sys.stderr)
+        sys.exit(0)
+
+    result = get_currently_playing(access_token)
+    if result is None:
+        sys.exit(0)
+
+    track_id, user_id = result
+    commit_hash = get_commit_hash()
+    post_commit_track(SERVICE_URL, commit_hash, track_id, user_id)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,29 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: mixtapr
+      POSTGRES_USER: mixtapr
+      POSTGRES_PASSWORD: mixtapr
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mixtapr"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mixtapr:
+    build: ./MixtaPRService
+    ports:
+      - "5226:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__Default: "Host=postgres;Database=mixtapr;Username=mixtapr;Password=mixtapr"
+
+volumes:
+  pgdata:

@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "MixtaPR",
+  "version": "1.0.0",
+  "description": "Replay the music your teammates coded to, right in GitHub PRs.",
+  "permissions": [
+    "identity",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://api.spotify.com/*",
+    "https://api.github.com/*",
+    "http://localhost:*/*",
+    "http://127.0.0.1:*/*",
+    "https://*.chromiumapp.org/"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://github.com/*/pull/*"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "MixtaPR Settings"
+  }
+}
