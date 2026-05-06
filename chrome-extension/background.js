@@ -3,6 +3,8 @@
  * Handles: Spotify PKCE OAuth via chrome.identity, token refresh, GitHub API, MixtaPR API.
  */
 
+const SPOTIFY_CLIENT_ID = "3ab017e03cd044809636a87e5749293a";
+
 const SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize";
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 const SPOTIFY_QUEUE_URL = "https://api.spotify.com/v1/me/player/queue";
@@ -29,7 +31,7 @@ async function pkceChallenge(verifier) {
 async function getSettings() {
   return new Promise(resolve =>
     chrome.storage.local.get(
-      { serviceUrl: "http://localhost:5226", spotifyClientId: "", accessToken: "", refreshToken: "", tokenExpiry: 0 },
+      { serviceUrl: "http://localhost:5226", accessToken: "", refreshToken: "", tokenExpiry: 0 },
       resolve
     )
   );
@@ -46,9 +48,7 @@ function serviceUrl(settings) {
 // ── OAuth flow ────────────────────────────────────────────────────────────────
 
 async function spotifyAuth() {
-  const settings = await getSettings();
-  const clientId = settings.spotifyClientId;
-  if (!clientId) throw new Error("No Spotify Client ID configured. Open the extension popup to set it.");
+  const clientId = SPOTIFY_CLIENT_ID;
 
   const verifier = generateRandom(32);
   const challenge = await pkceChallenge(verifier);
@@ -124,7 +124,7 @@ async function ensureValidToken() {
   let tokenData;
   if (settings.refreshToken) {
     try {
-      tokenData = await refreshToken(settings.spotifyClientId, settings.refreshToken);
+      tokenData = await refreshToken(SPOTIFY_CLIENT_ID, settings.refreshToken);
     } catch {
       tokenData = await spotifyAuth();
     }
