@@ -34,3 +34,4 @@ After running the script, load the extension in Chrome:
 
 Your next git commit will open Spotify in your browser to authorize. After that, every commit you make while music is playing will be recorded — and when you open a pull request on GitHub, the extension will show the tracks and let you queue them.
 
+Demo
