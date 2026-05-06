@@ -31,7 +31,7 @@ async function pkceChallenge(verifier) {
 async function getSettings() {
   return new Promise(resolve =>
     chrome.storage.local.get(
-      { serviceUrl: "http://localhost:5226", accessToken: "", refreshToken: "", tokenExpiry: 0 },
+      { serviceUrl: "https://www.justinkozlowski.me/mixtapr", accessToken: "", refreshToken: "", tokenExpiry: 0 },
       resolve
     )
   );

@@ -22,7 +22,7 @@ CONFIG_PATH = Path.home() / ".mixtapr" / "config.json"
 
 # ── Edit these before installing ──────────────────────────────────────────────
 SPOTIFY_CLIENT_ID = "3ab017e03cd044809636a87e5749293a"
-SERVICE_URL = "http://localhost:5226"
+SERVICE_URL = "https://www.justinkozlowski.me/mixtapr"
 # ─────────────────────────────────────────────────────────────────────────────
 
 SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize"
