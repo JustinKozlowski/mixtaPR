@@ -113,17 +113,40 @@
 
   // ── Main ──────────────────────────────────────────────────────────────────
 
+  function scrapeCommitHashes() {
+    const links = document.querySelectorAll('a[href*="/commit"]');
+    const hashes = new Set();
+    for (const a of links) {
+      const m = a.getAttribute("href")?.match(/\/commits?\/([0-9a-f]{40})/);
+      if (m) hashes.add(m[1]);
+    }
+    return [...hashes];
+  }
+
+  async function waitForCommitHashes(maxAttempts = 20, interval = 500) {
+    for (let i = 0; i < maxAttempts; i++) {
+      const allCommitLinks = [...document.querySelectorAll('a[href*="commit"]')].map(a => a.getAttribute("href"));
+      console.log(`[mixtaPR] attempt ${i + 1}: found ${allCommitLinks.length} commit links`, allCommitLinks);
+      const hashes = scrapeCommitHashes();
+      if (hashes.length) return hashes;
+      await new Promise(r => setTimeout(r, interval));
+    }
+    return [];
+  }
+
   async function init() {
     const panel = mountPanel();
     const body = panel.querySelector(".mixtapr-body");
 
+    const hashes = await waitForCommitHashes();
+    console.log("[mixtaPR] Scraped commit hashes:", hashes);
+
     try {
       const resp = await chrome.runtime.sendMessage({
         type: "GET_PR_TRACKS",
-        owner,
-        repo,
-        prNumber,
+        hashes,
       });
+      console.log("[mixtaPR] Response:", resp);
 
       if (resp.error) throw new Error(resp.error);
 

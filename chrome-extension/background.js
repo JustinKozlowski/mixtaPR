@@ -144,17 +144,20 @@ async function ensureValidToken() {
 
 async function fetchTrackDetails(accessToken, trackIds) {
   if (!trackIds.length) return [];
-  const results = [];
-  for (let i = 0; i < trackIds.length; i += 50) {
-    const batch = trackIds.slice(i, i + 50);
-    const resp = await fetch(`${SPOTIFY_TRACK_URL}?ids=${batch.join(",")}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!resp.ok) continue;
-    const data = await resp.json();
-    results.push(...(data.tracks || []));
-  }
-  return results;
+  const responses = await Promise.all(
+    trackIds.map(id =>
+      fetch(`${SPOTIFY_TRACK_URL}/${id}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }).then(async resp => {
+        if (!resp.ok) {
+          const body = await resp.text().catch(() => "");
+          throw new Error(`Spotify track API error ${resp.status} for ${id}: ${body}`);
+        }
+        return resp.json();
+      })
+    )
+  );
+  return responses;
 }
 
 async function queueTrack(accessToken, trackId) {
@@ -168,24 +171,6 @@ async function queueTrack(accessToken, trackId) {
 }
 
 // ── GitHub API ────────────────────────────────────────────────────────────────
-
-async function fetchPRCommits(owner, repo, prNumber) {
-  const commits = [];
-  let page = 1;
-  while (true) {
-    const resp = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/commits?per_page=100&page=${page}`,
-      { headers: { Accept: "application/vnd.github+json" } }
-    );
-    if (!resp.ok) break;
-    const data = await resp.json();
-    if (!data.length) break;
-    commits.push(...data.map(c => c.sha));
-    if (data.length < 100) break;
-    page++;
-  }
-  return commits;
-}
 
 // ── MixtaPR service ───────────────────────────────────────────────────────────
 
@@ -210,19 +195,22 @@ async function handleMessage(message) {
   const { type } = message;
 
   if (type === "GET_PR_TRACKS") {
-    const { owner, repo, prNumber } = message;
+    const { hashes } = message;
     const settings = await getSettings();
     const svc = serviceUrl(settings);
 
-    const hashes = await fetchPRCommits(owner, repo, prNumber);
+    console.log("[mixtaPR] Hashes received:", hashes);
     if (!hashes.length) return { tracks: [] };
 
     const commitTracks = await fetchCommitTracks(svc, hashes);
+    console.log("[mixtaPR] Commit tracks from service:", commitTracks);
     if (!commitTracks.length) return { tracks: [] };
 
     const accessToken = await ensureValidToken();
     const trackIds = [...new Set(commitTracks.map(ct => ct.spotifyTrackId))];
+    console.log("[mixtaPR] Fetching Spotify details for track IDs:", trackIds);
     const spotifyTracks = await fetchTrackDetails(accessToken, trackIds);
+    console.log("[mixtaPR] Spotify track details:", spotifyTracks);
 
     const trackMap = Object.fromEntries(spotifyTracks.filter(Boolean).map(t => [t.id, t]));
 
