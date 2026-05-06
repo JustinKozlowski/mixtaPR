@@ -6,6 +6,9 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddDbContext<MixtaDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
 
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+    policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader()));
+
 builder.Services.AddOpenApi(options =>
 {
     options.AddDocumentTransformer((doc, _, _) =>
@@ -19,6 +22,8 @@ builder.Services.AddOpenApi(options =>
 
 var app = builder.Build();
 
+app.UsePathBase("/mixtapr");
+app.UseCors();
 app.MapOpenApi();
 app.MapScalarApiReference();
 

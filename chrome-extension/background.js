@@ -3,6 +3,8 @@
  * Handles: Spotify PKCE OAuth via chrome.identity, token refresh, GitHub API, MixtaPR API.
  */
 
+const SPOTIFY_CLIENT_ID = "3ab017e03cd044809636a87e5749293a";
+
 const SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize";
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 const SPOTIFY_QUEUE_URL = "https://api.spotify.com/v1/me/player/queue";
@@ -29,7 +31,7 @@ async function pkceChallenge(verifier) {
 async function getSettings() {
   return new Promise(resolve =>
     chrome.storage.local.get(
-      { serviceUrl: "http://localhost:5226", spotifyClientId: "", accessToken: "", refreshToken: "", tokenExpiry: 0 },
+      { serviceUrl: "http://localhost:5226", accessToken: "", refreshToken: "", tokenExpiry: 0 },
       resolve
     )
   );
@@ -46,9 +48,7 @@ function serviceUrl(settings) {
 // ── OAuth flow ────────────────────────────────────────────────────────────────
 
 async function spotifyAuth() {
-  const settings = await getSettings();
-  const clientId = settings.spotifyClientId;
-  if (!clientId) throw new Error("No Spotify Client ID configured. Open the extension popup to set it.");
+  const clientId = SPOTIFY_CLIENT_ID;
 
   const verifier = generateRandom(32);
   const challenge = await pkceChallenge(verifier);
@@ -113,7 +113,8 @@ async function refreshToken(clientId, refreshTok) {
   return resp.json();
 }
 
-async function ensureValidToken() {
+// Returns a valid token silently (refresh if needed) or null if full OAuth is required.
+async function getValidTokenSilently() {
   const settings = await getSettings();
   const now = Date.now();
 
@@ -121,17 +122,31 @@ async function ensureValidToken() {
     return settings.accessToken;
   }
 
-  let tokenData;
   if (settings.refreshToken) {
     try {
-      tokenData = await refreshToken(settings.spotifyClientId, settings.refreshToken);
+      const tokenData = await refreshToken(SPOTIFY_CLIENT_ID, settings.refreshToken);
+      await saveSettings({
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token || settings.refreshToken,
+        tokenExpiry: now + tokenData.expires_in * 1000,
+      });
+      return tokenData.access_token;
     } catch {
-      tokenData = await spotifyAuth();
+      return null;
     }
-  } else {
-    tokenData = await spotifyAuth();
   }
 
+  return null;
+}
+
+// Returns a valid token, triggering the full OAuth flow if necessary.
+async function ensureValidToken() {
+  const token = await getValidTokenSilently();
+  if (token) return token;
+
+  const settings = await getSettings();
+  const now = Date.now();
+  const tokenData = await spotifyAuth();
   await saveSettings({
     accessToken: tokenData.access_token,
     refreshToken: tokenData.refresh_token || settings.refreshToken,
@@ -144,17 +159,20 @@ async function ensureValidToken() {
 
 async function fetchTrackDetails(accessToken, trackIds) {
   if (!trackIds.length) return [];
-  const results = [];
-  for (let i = 0; i < trackIds.length; i += 50) {
-    const batch = trackIds.slice(i, i + 50);
-    const resp = await fetch(`${SPOTIFY_TRACK_URL}?ids=${batch.join(",")}`, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!resp.ok) continue;
-    const data = await resp.json();
-    results.push(...(data.tracks || []));
-  }
-  return results;
+  const responses = await Promise.all(
+    trackIds.map(id =>
+      fetch(`${SPOTIFY_TRACK_URL}/${id}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }).then(async resp => {
+        if (!resp.ok) {
+          const body = await resp.text().catch(() => "");
+          throw new Error(`Spotify track API error ${resp.status} for ${id}: ${body}`);
+        }
+        return resp.json();
+      })
+    )
+  );
+  return responses;
 }
 
 async function queueTrack(accessToken, trackId) {
@@ -168,24 +186,6 @@ async function queueTrack(accessToken, trackId) {
 }
 
 // ── GitHub API ────────────────────────────────────────────────────────────────
-
-async function fetchPRCommits(owner, repo, prNumber) {
-  const commits = [];
-  let page = 1;
-  while (true) {
-    const resp = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}/commits?per_page=100&page=${page}`,
-      { headers: { Accept: "application/vnd.github+json" } }
-    );
-    if (!resp.ok) break;
-    const data = await resp.json();
-    if (!data.length) break;
-    commits.push(...data.map(c => c.sha));
-    if (data.length < 100) break;
-    page++;
-  }
-  return commits;
-}
 
 // ── MixtaPR service ───────────────────────────────────────────────────────────
 
@@ -210,19 +210,27 @@ async function handleMessage(message) {
   const { type } = message;
 
   if (type === "GET_PR_TRACKS") {
-    const { owner, repo, prNumber } = message;
+    const { hashes } = message;
     const settings = await getSettings();
     const svc = serviceUrl(settings);
 
-    const hashes = await fetchPRCommits(owner, repo, prNumber);
-    if (!hashes.length) return { tracks: [] };
+    const { queuedCommits = [] } = await new Promise(resolve => chrome.storage.local.get({ queuedCommits: [] }, resolve));
+    const newHashes = hashes.filter(h => !queuedCommits.includes(h));
 
-    const commitTracks = await fetchCommitTracks(svc, hashes);
+    console.log("[mixtaPR] Hashes received:", hashes, "| New (not yet queued):", newHashes);
+    if (!newHashes.length) return { tracks: [] };
+
+    const commitTracks = await fetchCommitTracks(svc, newHashes);
+    console.log("[mixtaPR] Commit tracks from service:", commitTracks);
     if (!commitTracks.length) return { tracks: [] };
 
-    const accessToken = await ensureValidToken();
+    const accessToken = await getValidTokenSilently();
+    if (!accessToken) return { needsAuth: true };
+
     const trackIds = [...new Set(commitTracks.map(ct => ct.spotifyTrackId))];
+    console.log("[mixtaPR] Fetching Spotify details for track IDs:", trackIds);
     const spotifyTracks = await fetchTrackDetails(accessToken, trackIds);
+    console.log("[mixtaPR] Spotify track details:", spotifyTracks);
 
     const trackMap = Object.fromEntries(spotifyTracks.filter(Boolean).map(t => [t.id, t]));
 
@@ -247,10 +255,15 @@ async function handleMessage(message) {
   }
 
   if (type === "QUEUE_TRACKS") {
-    const { trackIds } = message;
+    const { trackIds, commitHashes = [] } = message;
     const accessToken = await ensureValidToken();
     for (const id of trackIds) {
       await queueTrack(accessToken, id);
+    }
+    if (commitHashes.length) {
+      const { queuedCommits = [] } = await new Promise(resolve => chrome.storage.local.get({ queuedCommits: [] }, resolve));
+      const updated = [...new Set([...queuedCommits, ...commitHashes])];
+      await new Promise(resolve => chrome.storage.local.set({ queuedCommits: updated }, resolve));
     }
     return { queued: trackIds.length };
   }

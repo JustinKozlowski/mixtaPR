@@ -37,18 +37,7 @@
     input:focus { outline: none; border-color: #0969da; box-shadow: 0 0 0 3px rgba(9,105,218,.15); }
     .hint { font-size: 11px; color: #57606a; margin-top: -10px; margin-bottom: 14px; }
     .hint a { color: #0969da; }
-    .redirect-uri {
-      font-family: monospace;
-      font-size: 11px;
-      background: #f6f8fa;
-      border: 1px solid #d0d7de;
-      border-radius: 4px;
-      padding: 4px 6px;
-      word-break: break-all;
-      margin-bottom: 14px;
-      color: #24292f;
-    }
-    button {
+button {
       width: 100%;
       padding: 7px 14px;
       border: none;
@@ -76,14 +65,6 @@
 <body>
   <div class="header">🎵 MixtaPR Settings</div>
   <div class="content">
-    <label for="clientId">Spotify Client ID</label>
-    <input type="text" id="clientId" placeholder="Your Spotify app client ID">
-    <p class="hint">
-      Create an app at <a href="https://developer.spotify.com/dashboard" target="_blank">developer.spotify.com</a>
-      and add this redirect URI:
-    </p>
-    <div class="redirect-uri" id="redirectUri">Loading…</div>
-
     <label for="serviceUrl">MixtaPR Service URL</label>
     <input type="text" id="serviceUrl" placeholder="http://localhost:5226">
 

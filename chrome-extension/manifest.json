@@ -1,5 +1,6 @@
 {
   "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp512awOMfWvNWmF+nfs5UkIM+OnA6Z9ebxTfOt//OFXOUOyoJl3UnYxcfu65i7zLzs8EEFh+hUPc1SuMslWasRG73OzSqQDEnmo4d9uv32T2pid8VopC9EnD6Yg69n8dEpl9/eb9FOslWy6lMmoMbfZ/QgwcSjtzO5IRO4jAX/OZK0cwgmIYpt7HChbAsUg6xMMs/M98Ja0oebZkLMozJkqMAxX1D6Gll0SPMH9DgiGcn79Iz3hhRH5nhIBkpHczjJ1TAeU7j6HtsdioN0dxbaABT91rbs4NcuSy45TDElXoNR6bhOolUwHxJ3rNT/C0nzQK1RdJXYqH9s8VCr6DOwIDAQAB",
   "name": "MixtaPR",
   "version": "1.0.0",
   "description": "Replay the music your teammates coded to, right in GitHub PRs.",
@@ -9,7 +10,6 @@
   ],
   "host_permissions": [
     "https://api.spotify.com/*",
-    "https://api.github.com/*",
     "http://localhost:*/*",
     "http://127.0.0.1:*/*",
     "https://*.chromiumapp.org/"
