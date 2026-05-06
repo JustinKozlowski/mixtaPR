@@ -113,7 +113,8 @@ async function refreshToken(clientId, refreshTok) {
   return resp.json();
 }
 
-async function ensureValidToken() {
+// Returns a valid token silently (refresh if needed) or null if full OAuth is required.
+async function getValidTokenSilently() {
   const settings = await getSettings();
   const now = Date.now();
 
@@ -121,17 +122,31 @@ async function ensureValidToken() {
     return settings.accessToken;
   }
 
-  let tokenData;
   if (settings.refreshToken) {
     try {
-      tokenData = await refreshToken(SPOTIFY_CLIENT_ID, settings.refreshToken);
+      const tokenData = await refreshToken(SPOTIFY_CLIENT_ID, settings.refreshToken);
+      await saveSettings({
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token || settings.refreshToken,
+        tokenExpiry: now + tokenData.expires_in * 1000,
+      });
+      return tokenData.access_token;
     } catch {
-      tokenData = await spotifyAuth();
+      return null;
     }
-  } else {
-    tokenData = await spotifyAuth();
   }
 
+  return null;
+}
+
+// Returns a valid token, triggering the full OAuth flow if necessary.
+async function ensureValidToken() {
+  const token = await getValidTokenSilently();
+  if (token) return token;
+
+  const settings = await getSettings();
+  const now = Date.now();
+  const tokenData = await spotifyAuth();
   await saveSettings({
     accessToken: tokenData.access_token,
     refreshToken: tokenData.refresh_token || settings.refreshToken,
@@ -209,7 +224,9 @@ async function handleMessage(message) {
     console.log("[mixtaPR] Commit tracks from service:", commitTracks);
     if (!commitTracks.length) return { tracks: [] };
 
-    const accessToken = await ensureValidToken();
+    const accessToken = await getValidTokenSilently();
+    if (!accessToken) return { needsAuth: true };
+
     const trackIds = [...new Set(commitTracks.map(ct => ct.spotifyTrackId))];
     console.log("[mixtaPR] Fetching Spotify details for track IDs:", trackIds);
     const spotifyTracks = await fetchTrackDetails(accessToken, trackIds);

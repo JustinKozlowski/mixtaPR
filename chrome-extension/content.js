@@ -96,6 +96,36 @@
     return panel;
   }
 
+  function renderAuthPrompt() {
+    return `
+      <p class="text-[#57606a] dark:text-[#8b949e] text-center text-xs mb-2">Authorize Spotify to see what your teammates were listening to.</p>
+      <button class="mixtapr-auth-btn w-full px-3 py-1.5 bg-[#1DB954] text-white font-semibold border-0 rounded-full cursor-pointer text-[13px] transition-colors hover:bg-[#1aa34a] disabled:opacity-60 disabled:cursor-not-allowed">
+        Authorize Spotify
+      </button>
+      <p class="mixtapr-status text-center text-[#57606a] dark:text-[#8b949e] text-xs mt-1.5 min-h-[1em]"></p>
+    `;
+  }
+
+  function bindAuthButton(panel, hashes) {
+    const btn = panel.querySelector(".mixtapr-auth-btn");
+    if (!btn) return;
+    const status = panel.querySelector(".mixtapr-status");
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      status.textContent = "Opening Spotify authorization…";
+      try {
+        const resp = await chrome.runtime.sendMessage({ type: "SPOTIFY_AUTH" });
+        if (resp.error) throw new Error(resp.error);
+        const body = panel.querySelector(".mixtapr-body");
+        body.innerHTML = `<div class="text-[#57606a] dark:text-[#8b949e] text-center py-2">Loading tracks…</div>`;
+        await fetchAndRender(panel, hashes);
+      } catch (e) {
+        status.textContent = `Error: ${e.message}`;
+        btn.disabled = false;
+      }
+    });
+  }
+
   function bindQueueButton(panel) {
     const btn = panel.querySelector(".mixtapr-queue-btn");
     if (!btn) return;
@@ -139,27 +169,39 @@
     return [];
   }
 
-  async function init() {
-    const panel = mountPanel();
+  async function fetchAndRender(panel, hashes) {
     const body = panel.querySelector(".mixtapr-body");
-
-    const hashes = await waitForCommitHashes();
-    console.log("[mixtaPR] Scraped commit hashes:", hashes);
-
     try {
-      const resp = await chrome.runtime.sendMessage({
-        type: "GET_PR_TRACKS",
-        hashes,
-      });
+      const resp = await chrome.runtime.sendMessage({ type: "GET_PR_TRACKS", hashes });
       console.log("[mixtaPR] Response:", resp);
 
+      if (resp.needsAuth) {
+        body.innerHTML = renderAuthPrompt();
+        bindAuthButton(panel, hashes);
+        return;
+      }
+
       if (resp.error) throw new Error(resp.error);
+
+      if (!resp.tracks.length) {
+        panel.remove();
+        return;
+      }
 
       body.innerHTML = renderTracks(resp.tracks);
       bindQueueButton(panel);
     } catch (e) {
       body.innerHTML = `<p class="text-[#cf222e] dark:text-[#f85149] text-center py-2">MixtaPR error: ${escapeHtml(e.message)}</p>`;
     }
+  }
+
+  async function init() {
+    const panel = mountPanel();
+
+    const hashes = await waitForCommitHashes();
+    console.log("[mixtaPR] Scraped commit hashes:", hashes);
+
+    await fetchAndRender(panel, hashes);
   }
 
   // Run on page load; also re-run on GitHub's Turbo navigation
