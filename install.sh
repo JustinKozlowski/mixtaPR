@@ -35,7 +35,7 @@ open "https://developer.spotify.com/dashboard" 2>/dev/null \
 echo ""
 echo "In the dashboard:"
 echo "  1. Click 'Create app'"
-echo "  2. Fill in any name and description"
+echo "  2. Set the name to 'MixtaPR' and description to 'Share music using git commits'"
 echo "  3. Add BOTH of these Redirect URIs:"
 echo ""
 echo -e "     ${BLUE}http://127.0.0.1:8888/callback${RESET}"
@@ -135,7 +135,7 @@ echo -e "${BOLD}Load the extension in Chrome:${RESET}"
 echo "  1. Go to chrome://extensions"
 echo "  2. Enable 'Developer mode' (top-right toggle)"
 echo "  3. Click 'Load unpacked'"
-echo "  4. Select: ${BLUE}$EXT_DIR${RESET}"
+echo -e "  4. Select: ${BLUE}$EXT_DIR${RESET}"
 echo ""
 
 # ── Done ──────────────────────────────────────────────────────────────────────
