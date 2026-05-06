@@ -20,13 +20,14 @@
   function createPanel() {
     const panel = document.createElement("div");
     panel.id = "mixtapr-panel";
+    panel.className = "font-sans text-sm bg-white dark:bg-[#0d1117] border border-[#d0d7de] dark:border-[#30363d] rounded-md mb-4 overflow-hidden";
     panel.innerHTML = `
-      <div class="mixtapr-header">
-        <span class="mixtapr-title">🎵 MixtaPR</span>
-        <button class="mixtapr-collapse" title="Collapse">−</button>
+      <div class="mixtapr-header flex items-center justify-between px-3 py-2 bg-[#f6f8fa] dark:bg-[#161b22] border-b border-[#d0d7de] dark:border-[#30363d]">
+        <span class="font-semibold text-[#24292f] dark:text-[#e6edf3]">🎵 MixtaPR</span>
+        <button class="mixtapr-collapse bg-transparent border-0 cursor-pointer text-lg leading-none text-[#57606a] dark:text-[#8b949e] hover:text-[#24292f] dark:hover:text-[#e6edf3] px-1" title="Collapse">−</button>
       </div>
-      <div class="mixtapr-body">
-        <div class="mixtapr-loading">Loading commit tracks…</div>
+      <div class="mixtapr-body p-3">
+        <div class="text-[#57606a] dark:text-[#8b949e] text-center py-2">Loading commit tracks…</div>
       </div>
     `;
     return panel;
@@ -34,26 +35,29 @@
 
   function renderTracks(tracks) {
     if (!tracks.length) {
-      return `<p class="mixtapr-empty">No tracks found for this PR's commits.<br>
+      return `<p class="text-[#57606a] dark:text-[#8b949e] text-center py-2">No tracks found for this PR's commits.<br>
         Make sure contributors have the git hook installed.</p>`;
     }
     const items = tracks.map(t => `
-      <div class="mixtapr-track" data-track-id="${t.trackId}">
-        ${t.albumArt ? `<img class="mixtapr-art" src="${escapeHtml(t.albumArt)}" alt="">` : '<div class="mixtapr-art mixtapr-art-placeholder"></div>'}
-        <div class="mixtapr-track-info">
-          <a class="mixtapr-track-name" href="${escapeHtml(t.spotifyUrl)}" target="_blank" rel="noopener">${escapeHtml(t.name)}</a>
-          <span class="mixtapr-artist">${escapeHtml(t.artists)}</span>
+      <div class="flex items-center gap-2.5 px-2 py-1.5 rounded transition-colors hover:bg-[#f6f8fa] dark:hover:bg-[#161b22]" data-track-id="${t.trackId}">
+        ${t.albumArt
+          ? `<img class="w-10 h-10 rounded flex-shrink-0 object-cover" src="${escapeHtml(t.albumArt)}" alt="">`
+          : '<div class="w-10 h-10 rounded flex-shrink-0 bg-[#d0d7de] dark:bg-[#30363d]"></div>'}
+        <div class="flex flex-col min-w-0">
+          <a class="mixtapr-track-name font-medium text-[#24292f] dark:text-[#e6edf3] no-underline truncate hover:underline hover:text-[#0969da] dark:hover:text-[#58a6ff]" href="${escapeHtml(t.spotifyUrl)}" target="_blank" rel="noopener">${escapeHtml(t.name)}</a>
+          <span class="text-[#57606a] dark:text-[#8b949e] text-xs truncate">${escapeHtml(t.artists)}</span>
         </div>
       </div>
     `).join("");
 
     const trackIds = tracks.map(t => t.trackId);
+    const commitHashes = tracks.map(t => t.commitHash);
     return `
-      <div class="mixtapr-tracks">${items}</div>
-      <button class="mixtapr-queue-btn" data-track-ids='${JSON.stringify(trackIds)}'>
+      <div class="flex flex-col gap-2 mb-2.5 max-h-80 overflow-y-auto">${items}</div>
+      <button class="mixtapr-queue-btn w-full px-3 py-1.5 bg-[#1DB954] text-white font-semibold border-0 rounded-full cursor-pointer text-[13px] transition-colors hover:bg-[#1aa34a] disabled:opacity-60 disabled:cursor-not-allowed" data-track-ids='${JSON.stringify(trackIds)}' data-commit-hashes='${JSON.stringify(commitHashes)}'>
         Queue all in Spotify
       </button>
-      <p class="mixtapr-status"></p>
+      <p class="mixtapr-status text-center text-[#57606a] dark:text-[#8b949e] text-xs mt-1.5 min-h-[1em]"></p>
     `;
   }
 
@@ -97,11 +101,12 @@
     if (!btn) return;
     btn.addEventListener("click", async () => {
       const trackIds = JSON.parse(btn.dataset.trackIds);
+      const commitHashes = JSON.parse(btn.dataset.commitHashes);
       const status = panel.querySelector(".mixtapr-status");
       btn.disabled = true;
       status.textContent = "Queueing…";
       try {
-        const resp = await chrome.runtime.sendMessage({ type: "QUEUE_TRACKS", trackIds });
+        const resp = await chrome.runtime.sendMessage({ type: "QUEUE_TRACKS", trackIds, commitHashes });
         if (resp.error) throw new Error(resp.error);
         status.textContent = `Queued ${resp.queued} track${resp.queued !== 1 ? "s" : ""} in Spotify!`;
       } catch (e) {
@@ -153,7 +158,7 @@
       body.innerHTML = renderTracks(resp.tracks);
       bindQueueButton(panel);
     } catch (e) {
-      body.innerHTML = `<p class="mixtapr-error">MixtaPR error: ${escapeHtml(e.message)}</p>`;
+      body.innerHTML = `<p class="text-[#cf222e] dark:text-[#f85149] text-center py-2">MixtaPR error: ${escapeHtml(e.message)}</p>`;
     }
   }
 

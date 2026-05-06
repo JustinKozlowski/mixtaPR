@@ -199,10 +199,13 @@ async function handleMessage(message) {
     const settings = await getSettings();
     const svc = serviceUrl(settings);
 
-    console.log("[mixtaPR] Hashes received:", hashes);
-    if (!hashes.length) return { tracks: [] };
+    const { queuedCommits = [] } = await new Promise(resolve => chrome.storage.local.get({ queuedCommits: [] }, resolve));
+    const newHashes = hashes.filter(h => !queuedCommits.includes(h));
 
-    const commitTracks = await fetchCommitTracks(svc, hashes);
+    console.log("[mixtaPR] Hashes received:", hashes, "| New (not yet queued):", newHashes);
+    if (!newHashes.length) return { tracks: [] };
+
+    const commitTracks = await fetchCommitTracks(svc, newHashes);
     console.log("[mixtaPR] Commit tracks from service:", commitTracks);
     if (!commitTracks.length) return { tracks: [] };
 
@@ -235,10 +238,15 @@ async function handleMessage(message) {
   }
 
   if (type === "QUEUE_TRACKS") {
-    const { trackIds } = message;
+    const { trackIds, commitHashes = [] } = message;
     const accessToken = await ensureValidToken();
     for (const id of trackIds) {
       await queueTrack(accessToken, id);
+    }
+    if (commitHashes.length) {
+      const { queuedCommits = [] } = await new Promise(resolve => chrome.storage.local.get({ queuedCommits: [] }, resolve));
+      const updated = [...new Set([...queuedCommits, ...commitHashes])];
+      await new Promise(resolve => chrome.storage.local.set({ queuedCommits: updated }, resolve));
     }
     return { queued: trackIds.length };
   }
