@@ -5,6 +5,8 @@ obj/
 
 # Docker
 .env
+docker-compose.override.yml
+pgdata/
 
 # Node
 node_modules/

@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16
+    network_mode: bridge
+    environment:
+      POSTGRES_DB: mixtapr
+      POSTGRES_USER: mixtapr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mixtapr"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mixtapr:
+    image: justinkozlowski/projects:mixtapr
+    network_mode: bridge
+    links:
+      - postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      VIRTUAL_HOST: www.justinkozlowski.me
+      LETSENCRYPT_HOST: www.justinkozlowski.me
+      LETSENCRYPT_EMAIL: contact@justinkozlowski.me
+      VIRTUAL_PATH: /mixtapr
+      VIRTUAL_PORT: 8080
+      ConnectionStrings__Default: "Host=postgres;Database=mixtapr;Username=mixtapr;Password=${POSTGRES_PASSWORD}"
+

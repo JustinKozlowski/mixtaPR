@@ -22,6 +22,7 @@ builder.Services.AddOpenApi(options =>
 
 var app = builder.Build();
 
+app.UsePathBase("/mixtapr");
 app.UseCors();
 app.MapOpenApi();
 app.MapScalarApiReference();
