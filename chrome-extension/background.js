@@ -5,6 +5,8 @@
 
 const SPOTIFY_CLIENT_ID = "3ab017e03cd044809636a87e5749293a";
 
+const SERVICE_URL = "https://www.justinkozlowski.me/mixtapr";
+
 const SPOTIFY_AUTH_URL = "https://accounts.spotify.com/authorize";
 const SPOTIFY_TOKEN_URL = "https://accounts.spotify.com/api/token";
 const SPOTIFY_QUEUE_URL = "https://api.spotify.com/v1/me/player/queue";
@@ -31,7 +33,7 @@ async function pkceChallenge(verifier) {
 async function getSettings() {
   return new Promise(resolve =>
     chrome.storage.local.get(
-      { serviceUrl: "https://www.justinkozlowski.me/mixtapr", accessToken: "", refreshToken: "", tokenExpiry: 0 },
+      { accessToken: "", refreshToken: "", tokenExpiry: 0 },
       resolve
     )
   );
@@ -39,10 +41,6 @@ async function getSettings() {
 
 async function saveSettings(data) {
   return new Promise(resolve => chrome.storage.local.set(data, resolve));
-}
-
-function serviceUrl(settings) {
-  return settings.serviceUrl.replace(/\/$/, "");
 }
 
 // ── OAuth flow ────────────────────────────────────────────────────────────────
@@ -211,8 +209,7 @@ async function handleMessage(message) {
 
   if (type === "GET_PR_TRACKS") {
     const { hashes } = message;
-    const settings = await getSettings();
-    const svc = serviceUrl(settings);
+    const svc = SERVICE_URL;
 
     const { queuedCommits = [] } = await new Promise(resolve => chrome.storage.local.get({ queuedCommits: [] }, resolve));
     const newHashes = hashes.filter(h => !queuedCommits.includes(h));
